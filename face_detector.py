@@ -13,8 +13,22 @@ import os
 import sys
 import subprocess
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict
+
+
+def log_with_timestamp(message: str, prefix: str = "") -> None:
+    """
+    Print log message with timestamp
+    
+    Args:
+        message: The log message to print
+        prefix: Optional prefix for the log message (e.g., "[INFO]", "[ERROR]")
+    """
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    full_message = f"[{timestamp}] {prefix}{message}" if prefix else f"[{timestamp}] {message}"
+    print(full_message)
 
 
 class FaceDetector:
@@ -52,7 +66,7 @@ class FaceDetector:
         Supports common image formats: jpg, jpeg, png, bmp
         """
         if not self.face_dir.exists():
-            print(f"Error: Face directory '{self.face_dir}' does not exist!")
+            log_with_timestamp(f"Error: Face directory '{self.face_dir}' does not exist!", "[ERROR] ")
             sys.exit(1)
         
         supported_formats = {'.jpg', '.jpeg', '.png', '.bmp'}
@@ -62,11 +76,11 @@ class FaceDetector:
         ]
         
         if not image_files:
-            print(f"Error: No reference images found in '{self.face_dir}' directory!")
-            print("Please add reference images (jpg, jpeg, png, bmp formats)")
+            log_with_timestamp(f"Error: No reference images found in '{self.face_dir}' directory!", "[ERROR] ")
+            log_with_timestamp("Please add reference images (jpg, jpeg, png, bmp formats)", "[ERROR] ")
             sys.exit(1)
         
-        print(f"Loading {len(image_files)} reference images...")
+        log_with_timestamp(f"Loading {len(image_files)} reference images...", "[INFO] ")
         
         for image_file in image_files:
             try:
@@ -80,18 +94,19 @@ class FaceDetector:
                     # Use filename (without extension) as the name
                     name = image_file.stem
                     self.known_names.append(name)
-                    print(f"✓ Loaded: {name}")
+                    log_with_timestamp(f"✓ Loaded: {name}", "[INFO] ")
                 else:
-                    print(f"✗ No face found in: {image_file.name}")
+                    log_with_timestamp(f"✗ No face found in: {image_file.name}", "[WARN] ")
                     
             except Exception as e:
-                print(f"✗ Error loading {image_file.name}: {e}")
+                log_with_timestamp(f"✗ Error loading {image_file.name}: {e}", "[ERROR] ")
         
         if not self.known_faces:
-            print("Error: No valid faces found in reference images!")
+            log_with_timestamp("Error: No valid faces found in reference images!", "[ERROR] ")
             sys.exit(1)
         
-        print(f"Successfully loaded {len(self.known_faces)} reference faces\n")
+        log_with_timestamp(f"Successfully loaded {len(self.known_faces)} reference faces", "[INFO] ")
+        print()  # Empty line for formatting
     
     def find_best_camera(self) -> Optional[cv2.VideoCapture]:
         """
@@ -100,7 +115,7 @@ class FaceDetector:
         Returns:
             VideoCapture object for the best camera, or None if no camera found
         """
-        print("Searching for available cameras...")
+        log_with_timestamp("Searching for available cameras...", "[INFO] ")
         
         # Test different camera indices
         for camera_index in range(5):
@@ -117,14 +132,14 @@ class FaceDetector:
                         height = temp_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
                         fps = temp_capture.get(cv2.CAP_PROP_FPS)
                         
-                        print(f"Camera {camera_index}: {int(width)}x{int(height)} @ {fps:.1f}fps")
+                        log_with_timestamp(f"Camera {camera_index}: {int(width)}x{int(height)} @ {fps:.1f}fps", "[INFO] ")
                         
                         # Prefer cameras with reasonable resolution (not too high, not too low)
                         if 480 <= width <= 1920 and 360 <= height <= 1080:
-                            print(f"✓ Selected camera {camera_index}")
+                            log_with_timestamp(f"✓ Selected camera {camera_index}", "[INFO] ")
                             return temp_capture
                         else:
-                            print(f"  Camera {camera_index} resolution not ideal, continuing search...")
+                            log_with_timestamp(f"  Camera {camera_index} resolution not ideal, continuing search...", "[WARN] ")
                             temp_capture.release()
                     else:
                         temp_capture.release()
@@ -133,10 +148,10 @@ class FaceDetector:
                         temp_capture.release()
                         
             except Exception as e:
-                print(f"Error testing camera {camera_index}: {e}")
+                log_with_timestamp(f"Error testing camera {camera_index}: {e}", "[ERROR] ")
                 continue
         
-        print("No suitable camera found!")
+        log_with_timestamp("No suitable camera found!", "[ERROR] ")
         return None
     
     def execute_trigger_script(self, matched_name: str) -> None:
@@ -157,12 +172,12 @@ class FaceDetector:
         script_path = Path(self.trigger_script).expanduser()
         
         if not script_path.exists():
-            print(f"⚠️  Warning: Trigger script not found: {script_path}")
+            log_with_timestamp(f"⚠️  Warning: Trigger script not found: {script_path}", "[WARN] ")
             return
         
         try:
-            print(f"🚀 Executing trigger script for: {matched_name}")
-            print(f"📁 Script path: {script_path}")
+            log_with_timestamp(f"🚀 Executing trigger script for: {matched_name}", "[INFO] ")
+            log_with_timestamp(f"📁 Script path: {script_path}", "[INFO] ")
             
             # Execute the script with the matched name as argument
             result = subprocess.run(
@@ -173,20 +188,20 @@ class FaceDetector:
             )
             
             if result.returncode == 0:
-                print(f"✅ Script executed successfully")
+                log_with_timestamp(f"✅ Script executed successfully", "[INFO] ")
                 if result.stdout:
-                    print(f"📤 Output: {result.stdout.strip()}")
+                    log_with_timestamp(f"📤 Output: {result.stdout.strip()}", "[INFO] ")
             else:
-                print(f"❌ Script execution failed (exit code: {result.returncode})")
+                log_with_timestamp(f"❌ Script execution failed (exit code: {result.returncode})", "[ERROR] ")
                 if result.stderr:
-                    print(f"📥 Error: {result.stderr.strip()}")
+                    log_with_timestamp(f"📥 Error: {result.stderr.strip()}", "[ERROR] ")
             
             self.last_trigger_time = current_time
             
         except subprocess.TimeoutExpired:
-            print(f"⏱️  Script execution timed out after 30 seconds")
+            log_with_timestamp(f"⏱️  Script execution timed out after 30 seconds", "[ERROR] ")
         except Exception as e:
-            print(f"❌ Error executing script: {e}")
+            log_with_timestamp(f"❌ Error executing script: {e}", "[ERROR] ")
     
     def detect_and_compare_faces(self, frame: np.ndarray) -> Tuple[List[Tuple[int, int, int, int]], List[str], List[float]]:
         """
@@ -273,7 +288,7 @@ class FaceDetector:
         """
         Main detection loop - captures video and performs real-time face comparison
         """
-        print("Starting face detection...")
+        log_with_timestamp("Starting face detection...", "[INFO] ")
         print("Controls:")
         print("  'q' - quit")
         print("  'r' - reload reference images")
@@ -285,7 +300,7 @@ class FaceDetector:
         video_capture = self.find_best_camera()
         
         if video_capture is None:
-            print("Error: Could not find a suitable camera!")
+            log_with_timestamp("Error: Could not find a suitable camera!", "[ERROR] ")
             print("Troubleshooting steps:")
             print("1. Check camera permissions: System Preferences > Security & Privacy > Camera")
             print("2. Close other applications that might be using the camera")
@@ -304,7 +319,7 @@ class FaceDetector:
                 # Capture frame
                 ret, frame = video_capture.read()
                 if not ret or frame is None:
-                    print("Error: Could not read frame from camera!")
+                    log_with_timestamp("Error: Could not read frame from camera!", "[ERROR] ")
                     break
                 
                 frame_count += 1
@@ -316,7 +331,7 @@ class FaceDetector:
                     if key == ord('q'):
                         break
                     elif key == ord('r'):
-                        print("\nReloading reference images...")
+                        log_with_timestamp("Reloading reference images...", "[INFO] ")
                         self.known_faces.clear()
                         self.known_names.clear()
                         self.load_reference_faces()
@@ -326,7 +341,7 @@ class FaceDetector:
                     # Detect and compare faces
                     face_locations, face_names, face_distances = self.detect_and_compare_faces(frame)
                 except Exception as e:
-                    print(f"Error in face detection: {e}")
+                    log_with_timestamp(f"Error in face detection: {e}", "[ERROR] ")
                     # Continue with empty results to keep the program running
                     face_locations, face_names, face_distances = [], [], []
                 
@@ -354,21 +369,21 @@ class FaceDetector:
                         else:
                             confidence_level = "VERY LOW"
                         
-                        print(f"Face detected: {name} (distance: {distance:.3f}) - {match_status} - Confidence: {confidence_level}")
+                        log_with_timestamp(f"Face detected: {name} (distance: {distance:.3f}) - {match_status} - Confidence: {confidence_level}", "[DETECT] ")
                         
                         # Only execute trigger script for high confidence matches
                         if name != "Unknown" and distance < self.tolerance:
                             self.execute_trigger_script(name)
                         elif name != "Unknown" and distance >= self.tolerance:
-                            print(f"⚠️  Note: Match found but confidence too low (distance: {distance:.3f} >= threshold: {self.tolerance})")
-                            print(f"💡 Tip: If this should be a match, consider increasing tolerance to {distance + 0.05:.2f}")
+                            log_with_timestamp(f"⚠️  Note: Match found but confidence too low (distance: {distance:.3f} >= threshold: {self.tolerance})", "[WARN] ")
+                            log_with_timestamp(f"💡 Tip: If this should be a match, consider increasing tolerance to {distance + 0.05:.2f}", "[INFO] ")
                 
                 # Handle key presses
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('q'):
                     break
                 elif key == ord('r'):
-                    print("\nReloading reference images...")
+                    log_with_timestamp("Reloading reference images...", "[INFO] ")
                     self.known_faces.clear()
                     self.known_names.clear()
                     self.load_reference_faces()
@@ -376,21 +391,21 @@ class FaceDetector:
                     # Increase tolerance (less strict)
                     old_tolerance = self.tolerance
                     self.tolerance = min(1.0, self.tolerance + 0.05)
-                    print(f"\n🔧 Tolerance adjusted: {old_tolerance:.2f} → {self.tolerance:.2f} (less strict)")
+                    log_with_timestamp(f"🔧 Tolerance adjusted: {old_tolerance:.2f} → {self.tolerance:.2f} (less strict)", "[CONFIG] ")
                 elif key == ord('-') or key == ord('_'):
                     # Decrease tolerance (more strict)
                     old_tolerance = self.tolerance
                     self.tolerance = max(0.1, self.tolerance - 0.05)
-                    print(f"\n🔧 Tolerance adjusted: {old_tolerance:.2f} → {self.tolerance:.2f} (more strict)")
+                    log_with_timestamp(f"🔧 Tolerance adjusted: {old_tolerance:.2f} → {self.tolerance:.2f} (more strict)", "[CONFIG] ")
                     
         except KeyboardInterrupt:
-            print("\nStopping face detection...")
+            log_with_timestamp("Stopping face detection...", "[INFO] ")
         
         finally:
             # Clean up
             video_capture.release()
             cv2.destroyAllWindows()
-            print("Camera released and windows closed.")
+            log_with_timestamp("Camera released and windows closed.", "[INFO] ")
 
 
 def main():
